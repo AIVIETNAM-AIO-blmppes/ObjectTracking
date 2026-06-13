@@ -18,10 +18,8 @@ class VisionPipeline:
         self.device = device
         self.min_crop = min_crop
         
-        # Initialize the tracker
         self.tracker = DeepSort(max_age=30, n_init=3, nms_max_overlap=1.0)
         
-        # Comprehensive tracking and metrics log
         self.metrics_log = {"preprocess": [], "detect": [], "classify": [], "total": [], "video_progress": {}}
 
     def save_state(self, save_dir: str = "checkpoints"):
@@ -54,8 +52,7 @@ class VisionPipeline:
         probs = logits.softmax(-1)
         scores, cls = probs.max(-1)
         return list(zip(cls.tolist(), scores.tolist()))
-
-    # --- IMAGE PROCESSING ---
+    
     def run(self, image, image_id="anonymous"):
         t_start = time.perf_counter()
         
@@ -111,7 +108,7 @@ class VisionPipeline:
 
         total_ms = (time.perf_counter() - t_start) * 1000
         self.metrics_log["total"].append(total_ms)
-        self.save_state()  # Save metrics after processing
+        self.save_state()
 
         return PipelineResult(
             image_id=image_id,
@@ -119,9 +116,7 @@ class VisionPipeline:
             classifications=classifications,
             inference_ms=total_ms,
         )
-
-    # --- VIDEO PROCESSING ---
-    # --- VIDEO PROCESSING ---
+    
     def process_video(self, video_path: str, output_path: str, video_id: str) -> VideoJobResult:
         cap = cv2.VideoCapture(video_path)
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -171,13 +166,11 @@ class VisionPipeline:
                 track_id = track.track_id
                 ltrb = track.to_ltrb()
                 
-                # --- NEW: Strictly clamp bounding boxes to image boundaries ---
                 x1 = max(0, min(int(ltrb[0]), tensor.shape[-1]))
                 y1 = max(0, min(int(ltrb[1]), tensor.shape[-2]))
                 x2 = max(0, min(int(ltrb[2]), tensor.shape[-1]))
                 y2 = max(0, min(int(ltrb[3]), tensor.shape[-2]))
                 
-                # Safety check: If the predicted box is completely off-screen, skip it
                 if x1 >= x2 or y1 >= y2:
                     continue
                 # -------------------------------------------------------------
@@ -204,14 +197,12 @@ class VisionPipeline:
 
             out.write(frame)
             
-            # --- NEW ENHANCED LOGGING ---
             if frame_idx % 10 == 0:
                 elapsed = time.perf_counter() - t_start
                 current_fps = frame_idx / elapsed
                 percent = (frame_idx / total_frames) * 100
                 print(f"[{video_id}] Progress: {frame_idx}/{total_frames} frames ({percent:.1f}%) | Speed: {current_fps:.1f} it/s | Active Tracks: {len(valid_tracks)}")
                 
-                # Save progress safely to disk every 10 frames
                 self.metrics_log["video_progress"][video_id] = {"frames": frame_idx, "total": total_frames}
                 self.save_state()
 

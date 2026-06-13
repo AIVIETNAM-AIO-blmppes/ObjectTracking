@@ -7,7 +7,7 @@ class Detection(BaseModel):
     score: float = Field(ge=0, le=1)
     class_id: int = Field(ge=0)
     class_name: str
-    track_id: Optional[int] = None  # NEW: Object identity across frames
+    track_id: Optional[int] = None
     mask_rle: Optional[str] = None
 
 class Classification(BaseModel):

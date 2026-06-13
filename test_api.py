@@ -20,15 +20,12 @@
 import requests
 
 url = "http://localhost:8000/track-video"
-video_path = "C:/Users/ADMIN/Documents/ObjectTracking/08fd33_4_short.mp4" # Make sure to point this to your actual video file name!
+video_path = "C:/Users/ADMIN/Documents/ObjectTracking/08fd33_4_short.mp4"
 
-print(f"Sending video to pipeline. This will take a while, but it will NOT time out...")
+print(f"Sending video to pipeline.")
 
 with open(video_path, "rb") as f:
-    # Explicitly define the filename, the file object, and the content type
     files = {"file": ("test_video.mp4", f, "video/mp4")}
-    
-    # timeout=None ensures Python waits as long as it takes
     response = requests.post(url, files=files, timeout=None)
 
 if response.status_code == 200:
