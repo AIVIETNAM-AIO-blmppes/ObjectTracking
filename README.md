@@ -7,7 +7,7 @@
 
 A robust, end-to-end computer vision microservice designed for production environments. This project bridges the gap between raw machine learning models and deployable software by chaining **Mask R-CNN**, **ConvNeXt**, and **DeepSORT** together via strict Pydantic data contracts and an asynchronous HTTP serving layer.
 
-*(Insert a GIF or Screenshot of your web dashboard here)*
+![Vision Pipeline Demo](dashboard.jpg)
 
 ## 🧠 System Architecture
 
