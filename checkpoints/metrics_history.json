@@ -1,0 +1,12 @@
+{
+  "preprocess": [],
+  "detect": [],
+  "classify": [],
+  "total": [],
+  "video_progress": {
+    "37b4f29e": {
+      "frames": 125,
+      "status": "completed"
+    }
+  }
+}

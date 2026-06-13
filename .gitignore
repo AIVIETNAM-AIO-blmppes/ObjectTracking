@@ -1,0 +1,26 @@
+# Python Environment & Cache
+vision-env/
+venv/
+__pycache__/
+*.pyc
+
+# Local Model Weights & Checkpoints (Too large for version control)
+*.pth
+*.pt
+checkpoints/detector_weights.pth
+checkpoints/classifier_weights.pth
+benchmark_checkpoints/
+
+# User Uploads & Heavy Media
+# We ignore generated video files but keep the folder structure
+static/videos/input_*.mp4
+static/videos/output_*.mp4
+*.mp4
+*.mov
+*.avi
+# (Optional) Force Git to track one tiny sample video for demonstration
+!test_video.mp4 
+
+# OS Generated Files
+.DS_Store
+Thumbs.db

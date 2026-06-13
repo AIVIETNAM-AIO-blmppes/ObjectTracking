@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Vision & Tracking Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 24px;
+            background-color: #f5f7fb;
+            color: #2d3748;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { margin-bottom: 24px; }
+        h1 { margin: 0 0 8px 0; color: #1a202c; }
+        
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 768px) { .control-panel { grid-template-columns: 1fr; } }
+        
+        .upload-section {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .upload-row { display: flex; align-items: center; gap: 16px; }
+        
+        .btn {
+            background-color: #4f46e5; color: white;
+            padding: 10px 20px; border: none; border-radius: 6px;
+            cursor: pointer; font-weight: 600;
+        }
+        .btn:hover { background-color: #4338ca; }
+        .btn-green { background-color: #16a34a; }
+        .btn-green:hover { background-color: #15803d; }
+        .btn:disabled { background-color: #94a3b8; cursor: not-allowed; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+        @media (max-width: 768px) { .dashboard-grid { grid-template-columns: 1fr; } }
+        
+        .panel {
+            background: white; padding: 24px;
+            border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            min-height: 300px;
+        }
+        
+        /* Media Containers */
+        .media-container {
+            width: 100%; display: flex; justify-content: center; align-items: center;
+            background: #edf2f7; border-radius: 6px; overflow: hidden; position: relative;
+        }
+        canvas { max-width: 100%; height: auto; display: block; }
+        video { width: 100%; border-radius: 6px; display: none; }
+        
+        .meta-item { margin-bottom: 12px; font-size: 14px; }
+        .meta-value { font-weight: bold; color: #4f46e5; }
+        
+        .result-list { margin-top: 16px; max-height: 400px; overflow-y: auto; }
+        .card {
+            border: 1px solid #e2e8f0; padding: 12px;
+            border-radius: 6px; margin-bottom: 8px; background: #f8fafc;
+        }
+        .card-title { font-weight: bold; margin-bottom: 4px; }
+        .loader { color: #d97706; font-style: italic; font-size: 14px; display: none; font-weight: 600;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Vision & Tracking Interface</h1>
+        <p>Production execution layer for single-frame detection and real-time video tracking.</p>
+    </header>
+
+    <div class="control-panel">
+        <div class="upload-section">
+            <h3 style="margin-top:0;">Image Analysis</h3>
+            <div class="upload-row">
+                <input type="file" id="imageInput" accept="image/jpeg,image/png,image/webp">
+                <button class="btn" id="uploadBtn">Analyze Image</button>
+            </div>
+            <span class="loader" id="imageLoader">Running inference pipeline...</span>
+        </div>
+
+        <div class="upload-section" style="border-left: 4px solid #16a34a;">
+            <h3 style="margin-top:0; color: #16a34a;">Video Tracking (DeepSORT)</h3>
+            <div class="upload-row">
+                <input type="file" id="videoInput" accept="video/mp4,video/webm,video/mov">
+                <button class="btn btn-green" id="trackBtn">Process Video</button>
+            </div>
+            <span class="loader" id="videoLoader">Running DeepSORT tracking across frames (this may take a minute)...</span>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="panel">
+            <h3>Visual Pipeline Stream</h3>
+            <div class="media-container" id="mediaWrapper">
+                <canvas id="viewport"></canvas>
+                <video id="videoPlayer" controls></video>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>Pipeline Metrics</h3>
+            <div id="metrics">
+                <div class="meta-item">Execution Time: <span class="meta-value" id="latencyVal">-</span></div>
+                <div class="meta-item" id="objCountContainer">Objects Detected: <span class="meta-value" id="countVal">-</span></div>
+                <div class="meta-item" id="fpsContainer" style="display:none;">Processing Speed: <span class="meta-value" id="fpsVal">-</span></div>
+            </div>
+            <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 16px 0;">
+            <h3 id="detailsHeader">Detections</h3>
+            <div class="result-list" id="resultList">
+                <p style="color: #a0aec0;">Upload media to compute results.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Elements
+    const imageInput = document.getElementById('imageInput');
+    const videoInput = document.getElementById('videoInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const trackBtn = document.getElementById('trackBtn');
+    
+    const imageLoader = document.getElementById('imageLoader');
+    const videoLoader = document.getElementById('videoLoader');
+    
+    const canvas = document.getElementById('viewport');
+    const ctx = canvas.getContext('2d');
+    const videoPlayer = document.getElementById('videoPlayer');
+    
+    const latencyVal = document.getElementById('latencyVal');
+    const countVal = document.getElementById('countVal');
+    const fpsVal = document.getElementById('fpsVal');
+    const objCountContainer = document.getElementById('objCountContainer');
+    const fpsContainer = document.getElementById('fpsContainer');
+    const resultList = document.getElementById('resultList');
+    const detailsHeader = document.getElementById('detailsHeader');
+
+    let loadedImage = null;
+
+    // --- LOGIC: IMAGE PROCESSING ---
+    imageInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            loadedImage = new Image();
+            loadedImage.onload = () => {
+                videoPlayer.style.display = 'none';
+                canvas.style.display = 'block';
+                canvas.width = loadedImage.width;
+                canvas.height = loadedImage.height;
+                ctx.drawImage(loadedImage, 0, 0);
+            };
+            loadedImage.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+        const file = imageInput.files[0];
+        if (!file) { alert("Please select an image file first."); return; }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        imageLoader.style.display = 'block';
+        uploadBtn.disabled = true; trackBtn.disabled = true;
+
+        try {
+            const response = await fetch('/detect', { method: 'POST', body: formData });
+            if (!response.ok) throw new Error('Inference pipeline execution failed.');
+            const data = await response.json();
+            renderImageResults(data);
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            imageLoader.style.display = 'none';
+            uploadBtn.disabled = false; trackBtn.disabled = false;
+        }
+    });
+
+    function renderImageResults(data) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(loadedImage, 0, 0);
+        
+        fpsContainer.style.display = 'none';
+        objCountContainer.style.display = 'block';
+        detailsHeader.textContent = "Detections & Deep Classification";
+
+        latencyVal.textContent = `${data.inference_ms.toFixed(1)} ms`;
+        countVal.textContent = data.detections.length;
+        resultList.innerHTML = '';
+
+        if (data.detections.length === 0) {
+            resultList.innerHTML = '<p style="color: #a0aec0;">No objects detected.</p>';
+            return;
+        }
+
+        const classMap = {};
+        data.classifications.forEach(c => { classMap[c.detection_index] = c; });
+
+        data.detections.forEach((det, index) => {
+            const [x1, y1, x2, y2] = det.box;
+            
+            ctx.strokeStyle = '#22c55e'; 
+            ctx.lineWidth = Math.max(2, Math.floor(canvas.width / 400));
+            ctx.strokeRect(x1, y1, x2-x1, y2-y1);
+
+            ctx.fillStyle = '#22c55e';
+            const fontSize = Math.max(12, Math.floor(canvas.width / 50));
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.fillText(`[${index}] ${det.class_name}`, x1, y1 > fontSize ? y1 - 5 : y1 + fontSize);
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            const secondaryClass = classMap[index];
+            let secondaryHtml = secondaryClass ? `<div style="color: #4f46e5; margin-top:4px;">↳ Crop Identity: <strong>${secondaryClass.class_name}</strong> (${(secondaryClass.score * 100).toFixed(1)}%)</div>` : '';
+
+            card.innerHTML = `
+                <div class="card-title">[Object ${index}] Base Detector: ${det.class_name}</div>
+                <div style="font-size:13px; color:#64748b;">Confidence: ${(det.score * 100).toFixed(1)}%</div>
+                ${secondaryHtml}
+            `;
+            resultList.appendChild(card);
+        });
+    }
+
+    // --- LOGIC: VIDEO TRACKING (BACKGROUND POLLING) ---
+    trackBtn.addEventListener('click', async () => {
+        const file = videoInput.files[0];
+        if (!file) { alert("Please select a video file first."); return; }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        videoLoader.style.display = 'block';
+        videoLoader.textContent = "Uploading video and initializing job...";
+        trackBtn.disabled = true; uploadBtn.disabled = true;
+        resultList.innerHTML = '<p style="color: #a0aec0;">Processing video... live status will appear here.</p>';
+
+        try {
+            // STEP 1: Start the background job
+            const startResponse = await fetch('/start-tracking', { method: 'POST', body: formData });
+            if (!startResponse.ok) throw new Error('Failed to start tracking job.');
+            const startData = await startResponse.json();
+            
+            // STEP 2: Begin polling for status
+            pollJobStatus(startData.job_id);
+
+        } catch (error) {
+            alert(error.message);
+            resetVideoUI();
+            resultList.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+    });
+
+    async function pollJobStatus(jobId) {
+        try {
+            const response = await fetch(`/status/${jobId}`);
+            const data = await response.json();
+
+            if (data.status === 'processing' || data.status === 'starting') {
+                // Update the UI with real-time frame counts!
+                if (data.progress && data.progress.total) {
+                    const percent = Math.round((data.progress.frames / data.progress.total) * 100);
+                    videoLoader.textContent = `Processing Frame ${data.progress.frames} of ${data.progress.total} (${percent}%)`;
+                } else {
+                    videoLoader.textContent = "Warming up tracker models...";
+                }
+                
+                // Ask again in 2 seconds
+                setTimeout(() => pollJobStatus(jobId), 2000);
+
+            } else if (data.status === 'completed') {
+                renderVideoResults(data.result);
+            } else if (data.status === 'error') {
+                throw new Error(data.detail);
+            }
+        } catch (error) {
+            alert("Polling Error: " + error.message);
+            resetVideoUI();
+        }
+    }
+
+    function renderVideoResults(resultData) {
+        resetVideoUI();
+        
+        // Switch UI to video mode
+        canvas.style.display = 'none';
+        videoPlayer.style.display = 'block';
+        
+        // Append timestamp to bust browser caching
+        videoPlayer.src = `${resultData.output_video_path}?t=${new Date().getTime()}`;
+        videoPlayer.play();
+
+        // Update Metrics
+        objCountContainer.style.display = 'none';
+        fpsContainer.style.display = 'block';
+        detailsHeader.textContent = "Video Job Summary";
+        
+        latencyVal.textContent = `${resultData.total_time_sec.toFixed(1)} seconds`;
+        fpsVal.textContent = `${resultData.fps} FPS Target`;
+
+        resultList.innerHTML = `
+            <div class="card">
+                <div class="card-title">Tracking Complete</div>
+                <div style="font-size:13px; color:#64748b;">Job ID: ${resultData.video_id}</div>
+                <div style="font-size:13px; color:#64748b;">Frames Processed: ${resultData.processed_frames} / ${resultData.total_frames}</div>
+                <div style="margin-top: 8px;">
+                    <a href="${resultData.output_video_path}" download class="btn btn-green" style="display:inline-block; text-decoration:none; padding: 6px 12px; font-size: 13px;">Download Result MP4</a>
+                </div>
+            </div>
+        `;
+    }
+
+    function resetVideoUI() {
+        videoLoader.style.display = 'none';
+        trackBtn.disabled = false; uploadBtn.disabled = false;
+    }
+</script>
+</body>
+</html>
